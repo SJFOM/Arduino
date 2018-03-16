@@ -2,9 +2,9 @@
 
    David Johnson-Davies - www.technoblogy.com - 18th February 2018
    ATtiny85 @ 8 MHz (internal PLL; BOD disabled)
-   
+
    CC BY 4.0
-   Licensed under a Creative Commons Attribution 4.0 International license: 
+   Licensed under a Creative Commons Attribution 4.0 International license:
    http://creativecommons.org/licenses/by/4.0/
 */
 
@@ -22,17 +22,17 @@ volatile unsigned int Acc, Jump;
 
 void SetupDDS () {
   // Enable 64 MHz PLL and use as source for Timer1
-  PLLCSR = 1<<PCKE | 1<<PLLE;     
+  PLLCSR = 1 << PCKE | 1 << PLLE;
 
   // Set up Timer/Counter1 for PWM output
   TIMSK = 0;                               // Timer interrupts OFF
-  TCCR1 = 1<<PWM1A | 2<<COM1A0 | 1<<CS10;  // PWM A, clear on match, 1:1 prescale
+  TCCR1 = 1 << PWM1A | 2 << COM1A0 | 1 << CS10; // PWM A, clear on match, 1:1 prescale
   pinMode(1, OUTPUT);                      // Enable PWM output pin
 
   // Set up Timer/Counter0 for 20kHz interrupt to output samples.
-  TCCR0A = 3<<WGM00;                       // Fast PWM
-  TCCR0B = 1<<WGM02 | 2<<CS00;             // 1/8 prescale
-  TIMSK = 1<<OCIE0A;                       // Enable compare match, disable overflow
+  TCCR0A = 3 << WGM00;                     // Fast PWM
+  TCCR0B = 1 << WGM02 | 2 << CS00;         // 1/8 prescale
+  TIMSK = 1 << OCIE0A;                     // Enable compare match, disable overflow
   OCR0A = 60;                              // Divide by 61
 }
 
@@ -43,31 +43,31 @@ void Sawtooth () {
 
 void Square () {
   Acc = Acc + Jump;
-  int8_t temp = Acc>>8;
-  OCR1A = temp>>7;
+  int8_t temp = Acc >> 8;
+  OCR1A = temp >> 7;
 }
 
 void Rectangle () {
   Acc = Acc + Jump;
-  int8_t temp = Acc>>8;
-  temp = temp & temp<<1;
-  OCR1A = temp>>7;
+  int8_t temp = Acc >> 8;
+  temp = temp & temp << 1;
+  OCR1A = temp >> 7;
 }
 
 void Triangle () {
   int8_t temp, mask;
   Acc = Acc + Jump;
-  temp = Acc>>8;
-  mask = temp>>7;
+  temp = Acc >> 8;
+  mask = temp >> 7;
   temp = temp ^ mask;
-  OCR1A = temp<<1;
+  OCR1A = temp << 1;
 }
 
 void Chainsaw () {
   int8_t temp, mask, top;
   Acc = Acc + Jump;
-  temp = Acc>>8;
-  mask = temp>>7;
+  temp = Acc >> 8;
+  mask = temp >> 7;
   top = temp & 0x80;
   temp = (temp ^ mask) | top;
   OCR1A = temp;
@@ -75,9 +75,9 @@ void Chainsaw () {
 
 void Pulse () {
   Acc = Acc + Jump;
-  int8_t temp = Acc>>8;
-  temp = temp & temp<<1 & temp<<2 & temp<<3;
-  OCR1A = temp>>7;
+  int8_t temp = Acc >> 8;
+  temp = temp & temp << 1 & temp << 2 & temp << 3;
+  OCR1A = temp >> 7;
 }
 
 void Noise () {
@@ -91,8 +91,22 @@ const int nWaves = 7;
 wavefun_t Waves[nWaves] = {Triangle, Sawtooth, Square, Rectangle, Pulse, Chainsaw, Noise};
 wavefun_t Wavefun;
 
+const int potInput = A2;
+volatile uint16_t readPotCount = 0;
+
+const int MinFreq = 1;        // Hz
+const int MaxFreq = 5000;     // Hz
+
 ISR(TIMER0_COMPA_vect) {
   Wavefun();
+  // dirty way of checking potentiometer
+  if (readPotCount++ > 2000) { // 20kHz/2000 = 100ms
+    readPotCount = 0;
+    Freq = map(analogRead(potInput), 0, 1023, MinFreq, MaxFreq);
+//    Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
+    PlotFreq(Freq, 1, 7);
+    Jump = Freq * 4;
+  }
 }
 
 // OLED I2C 128 x 32 monochrome display **********************************************
@@ -135,7 +149,7 @@ const int command = 0x00;
 void InitDisplay () {
   Wire.beginTransmission(OLEDAddress);
   Wire.write(command);
-  for (uint8_t c=0; c<InitLen; c++) Wire.write(pgm_read_byte(&Init[c]));
+  for (uint8_t c = 0; c < InitLen; c++) Wire.write(pgm_read_byte(&Init[c]));
   Wire.endTransmission();
 }
 
@@ -148,33 +162,33 @@ const int Icons = 13;
 
 // Character set for digits, "Hz", and waveform icons - stored in program memory
 const uint8_t CharMap[][6] PROGMEM = {
-{ 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00 }, // 30
-{ 0x00, 0x42, 0x7F, 0x40, 0x00, 0x00 }, 
-{ 0x72, 0x49, 0x49, 0x49, 0x46, 0x00 }, 
-{ 0x21, 0x41, 0x49, 0x4D, 0x33, 0x00 }, 
-{ 0x18, 0x14, 0x12, 0x7F, 0x10, 0x00 }, 
-{ 0x27, 0x45, 0x45, 0x45, 0x39, 0x00 }, 
-{ 0x3C, 0x4A, 0x49, 0x49, 0x31, 0x00 }, 
-{ 0x41, 0x21, 0x11, 0x09, 0x07, 0x00 }, 
-{ 0x36, 0x49, 0x49, 0x49, 0x36, 0x00 }, 
-{ 0x46, 0x49, 0x49, 0x29, 0x1E, 0x00 },
-{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // Space
-{ 0x7F, 0x08, 0x08, 0x08, 0x7F, 0x00 }, // H
-{ 0x44, 0x64, 0x54, 0x4C, 0x44, 0x00 }, // z
-{ 0x08, 0x04, 0x02, 0x01, 0x02, 0x04 }, // Triangle
-{ 0x08, 0x10, 0x20, 0x40, 0x20, 0x10 },
-{ 0x40, 0x20, 0x10, 0x08, 0x04, 0x7E }, // Sawtooth
-{ 0x40, 0x20, 0x10, 0x08, 0x04, 0x7E },
-{ 0x7E, 0x02, 0x02, 0x02, 0x02, 0x7E }, // Square
-{ 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
-{ 0x7E, 0x02, 0x02, 0x7E, 0x40, 0x40 }, // Rectangle
-{ 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
-{ 0x7E, 0x40, 0x40, 0x40, 0x40, 0x40 }, // Pulse
-{ 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
-{ 0x78, 0x04, 0x02, 0x0F, 0x10, 0x20 }, // Chainsaw
-{ 0x78, 0x04, 0x02, 0x0F, 0x10, 0x20 },
-{ 0x0C, 0x78, 0x1E, 0x18, 0x70, 0x1F }, // Noise
-{ 0x7C, 0x1C, 0x60, 0x38, 0x3E, 0x08 },
+  { 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00 }, // 30
+  { 0x00, 0x42, 0x7F, 0x40, 0x00, 0x00 },
+  { 0x72, 0x49, 0x49, 0x49, 0x46, 0x00 },
+  { 0x21, 0x41, 0x49, 0x4D, 0x33, 0x00 },
+  { 0x18, 0x14, 0x12, 0x7F, 0x10, 0x00 },
+  { 0x27, 0x45, 0x45, 0x45, 0x39, 0x00 },
+  { 0x3C, 0x4A, 0x49, 0x49, 0x31, 0x00 },
+  { 0x41, 0x21, 0x11, 0x09, 0x07, 0x00 },
+  { 0x36, 0x49, 0x49, 0x49, 0x36, 0x00 },
+  { 0x46, 0x49, 0x49, 0x29, 0x1E, 0x00 },
+  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // Space
+  { 0x7F, 0x08, 0x08, 0x08, 0x7F, 0x00 }, // H
+  { 0x44, 0x64, 0x54, 0x4C, 0x44, 0x00 }, // z
+  { 0x08, 0x04, 0x02, 0x01, 0x02, 0x04 }, // Triangle
+  { 0x08, 0x10, 0x20, 0x40, 0x20, 0x10 },
+  { 0x40, 0x20, 0x10, 0x08, 0x04, 0x7E }, // Sawtooth
+  { 0x40, 0x20, 0x10, 0x08, 0x04, 0x7E },
+  { 0x7E, 0x02, 0x02, 0x02, 0x02, 0x7E }, // Square
+  { 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
+  { 0x7E, 0x02, 0x02, 0x7E, 0x40, 0x40 }, // Rectangle
+  { 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
+  { 0x7E, 0x40, 0x40, 0x40, 0x40, 0x40 }, // Pulse
+  { 0x40, 0x40, 0x40, 0x40, 0x7E, 0x00 },
+  { 0x78, 0x04, 0x02, 0x0F, 0x10, 0x20 }, // Chainsaw
+  { 0x78, 0x04, 0x02, 0x0F, 0x10, 0x20 },
+  { 0x0C, 0x78, 0x1E, 0x18, 0x70, 0x1F }, // Noise
+  { 0x7C, 0x1C, 0x60, 0x38, 0x3E, 0x08 },
 };
 
 void ClearDisplay () {
@@ -196,10 +210,10 @@ void ClearDisplay () {
 
 // Converts bit pattern abcdefgh into aabbccddeeffgghh
 int Stretch (int x) {
-  x = (x & 0xF0)<<4 | (x & 0x0F);
-  x = (x<<2 | x) & 0x3333;
-  x = (x<<1 | x) & 0x5555;
-  return x | x<<1;
+  x = (x & 0xF0) << 4 | (x & 0x0F);
+  x = (x << 2 | x) & 0x3333;
+  x = (x << 1 | x) & 0x5555;
+  return x | x << 1;
 }
 
 // Plots a character; line = 0 to 2; column = 0 to 21
@@ -207,7 +221,7 @@ void PlotChar(int c, int line, int column) {
   Wire.beginTransmission(OLEDAddress);
   Wire.write(command);
   // Set column address range
-  Wire.write(0x21); Wire.write(column*6); Wire.write(column*6 + Scale*6 - 1);
+  Wire.write(0x21); Wire.write(column * 6); Wire.write(column * 6 + Scale * 6 - 1);
   // Set page address range
   Wire.write(0x22); Wire.write(line); Wire.write(line + Scale - 1);
   Wire.endTransmission();
@@ -218,79 +232,80 @@ void PlotChar(int c, int line, int column) {
     if (Scale == 1) Wire.write(bits);
     else {
       bits = Stretch(bits);
-      for (int i=2; i--;) { Wire.write(bits); Wire.write(bits>>8); }
+      for (int i = 2; i--;) {
+        Wire.write(bits);
+        Wire.write(bits >> 8);
+      }
     }
   }
   Wire.endTransmission();
 }
 
 uint8_t DigitChar (unsigned int number, unsigned int divisor) {
-  return (number/divisor) % 10;
+  return (number / divisor) % 10;
 }
 
 // Display waveform icon
 void PlotIcon (int wave, int line, int column) {
-  PlotChar(Icons+2*wave, line, column); column = column + Scale;
-  PlotChar(Icons+2*wave+1, line, column);
+  PlotChar(Icons + 2 * wave, line, column); column = column + Scale;
+  PlotChar(Icons + 2 * wave + 1, line, column);
 }
 
 // Display a 5-digit frequency starting at line, column
 void PlotFreq (unsigned int freq, int line, int column) {
   boolean dig = false;
-  for (unsigned int d=10000; d>0; d=d/10) {
+  for (unsigned int d = 10000; d > 0; d = d / 10) {
     char c = DigitChar(freq, d);
     if (c == 0 && !dig) c = Space; else dig = true;
     PlotChar(c, line, column);
     column = column + Scale;
   }
   PlotChar(Hz, line, column); column = column + Scale;
-  PlotChar(Hz+1, line, column);
+  PlotChar(Hz + 1, line, column);
 }
 
 // Rotary encoder **********************************************
 
-const int EncoderA = 3;
-const int EncoderB = 4;
-const int MinFreq = 1;        // Hz
-const int MaxFreq = 5000;     // Hz
+//const int EncoderA = 3;
+//const int EncoderB = 4;
+//
+//volatile int a0;
+//volatile int c0;
+//volatile int Count = 0;
+//
+//void SetupRotaryEncoder () {
+//  pinMode(EncoderA, INPUT_PULLUP);
+//  pinMode(EncoderB, INPUT_PULLUP);
+//  PCMSK = 1<<EncoderA;        // Configure pin change interrupt on A
+//  GIMSK = 1<<PCIE;            // Enable interrupt
+//  GIFR = 1<<PCIF;             // Clear interrupt flag
+//}
 
-volatile int a0;
-volatile int c0;
-volatile int Count = 0;
-
-void SetupRotaryEncoder () {
-  pinMode(EncoderA, INPUT_PULLUP);
-  pinMode(EncoderB, INPUT_PULLUP);
-  PCMSK = 1<<EncoderA;        // Configure pin change interrupt on A
-  GIMSK = 1<<PCIE;            // Enable interrupt
-  GIFR = 1<<PCIF;             // Clear interrupt flag
-}
-  
 // Called when encoder value changes
-void ChangeValue (bool Up) {
-  int step = 1;
-  if (Freq >= 1000) step = 100;
-  else if (Freq >=100) step = 10;
-  Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
-  PlotFreq(Freq, 1, 7);
-  Jump = Freq*4;
-}
+//void ChangeValue (bool Up) {
+//  int step = 1;
+//  if (Freq >= 1000) step = 100;
+//  else if (Freq >=100) step = 10;
+//  Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
+//  PlotFreq(Freq, 1, 7);
+//  Jump = Freq*4;
+//}
 
 // Pin change interrupt service routine
-ISR (PCINT0_vect) {
-  int a = PINB>>EncoderA & 1;
-  int b = PINB>>EncoderB & 1;
-  if (a != a0) {              // A changed
-    a0 = a;
-    if (b != c0) {
-      c0 = b;
-      ChangeValue(a == b);
-    }
-  }
-}
+//ISR (PCINT0_vect) {
+//  int a = PINB>>EncoderA & 1;
+//  int b = PINB>>EncoderB & 1;
+//  if (a != a0) {              // A changed
+//    a0 = a;
+//    if (b != c0) {
+//      c0 = b;
+//      ChangeValue(a == b);
+//    }
+//  }
+//}
 
 // Setup **********************************************
-  
+
 void setup() {
   Wire.begin();
   // Is it a power-on reset?
@@ -299,12 +314,14 @@ void setup() {
     InitDisplay();
     ClearDisplay();
   }
-  else Wave = (Wave+1) % nWaves;
+  else Wave = (Wave + 1) % nWaves;
   Wavefun = Waves[Wave];
   MCUSR = 0;
   SetupDDS();
-  SetupRotaryEncoder();
-  Jump = Freq*4;
+  //  SetupRotaryEncoder();
+  // Setup potentiometer pins instead
+  pinMode(potInput, INPUT);
+  Jump = Freq * 4;
   PlotFreq(Freq, 1, 7);
   PlotIcon(Wave, 1, 0);
 }
