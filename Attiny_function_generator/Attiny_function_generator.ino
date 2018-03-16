@@ -310,7 +310,7 @@ void setup() {
   Jump = Freq * 4;
   PlotFreq(Freq, 1, 7);
   PlotIcon(Wave, 1, 0);
-  ADCSRA &= ~(1 << ADEN); // disable ADC
+  ADCSRA &= ~(1 << ADEN); // disable ADC - uses ~320uA
 }
 
 // Everything done by interrupts
