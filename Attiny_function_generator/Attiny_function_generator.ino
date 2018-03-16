@@ -25,9 +25,9 @@ void SetupDDS () {
   PLLCSR = 1 << PCKE | 1 << PLLE;
 
   // Set up Timer/Counter1 for PWM output
-  TIMSK = 0;                               // Timer interrupts OFF
+  TIMSK = 0;                                    // Timer interrupts OFF
   TCCR1 = 1 << PWM1A | 2 << COM1A0 | 1 << CS10; // PWM A, clear on match, 1:1 prescale
-  pinMode(1, OUTPUT);                      // Enable PWM output pin
+  pinMode(1, OUTPUT);                           // Enable PWM output pin
 
   // Set up Timer/Counter0 for 20kHz interrupt to output samples.
   TCCR0A = 3 << WGM00;                     // Fast PWM
@@ -91,22 +91,8 @@ const int nWaves = 7;
 wavefun_t Waves[nWaves] = {Triangle, Sawtooth, Square, Rectangle, Pulse, Chainsaw, Noise};
 wavefun_t Wavefun;
 
-const int potInput = A2;
-volatile uint16_t readPotCount = 0;
-
-const int MinFreq = 1;        // Hz
-const int MaxFreq = 5000;     // Hz
-
 ISR(TIMER0_COMPA_vect) {
   Wavefun();
-  // dirty way of checking potentiometer
-  if (readPotCount++ > 2000) { // 20kHz/2000 = 100ms
-    readPotCount = 0;
-    Freq = map(analogRead(potInput), 0, 1023, MinFreq, MaxFreq);
-//    Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
-    PlotFreq(Freq, 1, 7);
-    Jump = Freq * 4;
-  }
 }
 
 // OLED I2C 128 x 32 monochrome display **********************************************
@@ -266,43 +252,45 @@ void PlotFreq (unsigned int freq, int line, int column) {
 
 // Rotary encoder **********************************************
 
-//const int EncoderA = 3;
-//const int EncoderB = 4;
-//
-//volatile int a0;
-//volatile int c0;
-//volatile int Count = 0;
-//
-//void SetupRotaryEncoder () {
-//  pinMode(EncoderA, INPUT_PULLUP);
-//  pinMode(EncoderB, INPUT_PULLUP);
-//  PCMSK = 1<<EncoderA;        // Configure pin change interrupt on A
-//  GIMSK = 1<<PCIE;            // Enable interrupt
-//  GIFR = 1<<PCIF;             // Clear interrupt flag
-//}
+const int EncoderA = 3;
+const int EncoderB = 4;
+const int MinFreq = 1;        // Hz
+const int MaxFreq = 5000;     // Hz
+
+volatile int a0;
+volatile int c0;
+volatile int Count = 0;
+
+void SetupRotaryEncoder () {
+  pinMode(EncoderA, INPUT_PULLUP);
+  pinMode(EncoderB, INPUT_PULLUP);
+  PCMSK = 1 << EncoderA;      // Configure pin change interrupt on A
+  GIMSK = 1 << PCIE;          // Enable interrupt
+  GIFR = 1 << PCIF;           // Clear interrupt flag
+}
 
 // Called when encoder value changes
-//void ChangeValue (bool Up) {
-//  int step = 1;
-//  if (Freq >= 1000) step = 100;
-//  else if (Freq >=100) step = 10;
-//  Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
-//  PlotFreq(Freq, 1, 7);
-//  Jump = Freq*4;
-//}
+void ChangeValue (bool Up) {
+  int step = 1;
+  if (Freq >= 1000) step = 100;
+  else if (Freq >= 100) step = 10;
+  Freq = max(min((Freq + (Up ? step : -step)), MaxFreq), MinFreq);
+  PlotFreq(Freq, 1, 7);
+  Jump = Freq * 4;
+}
 
 // Pin change interrupt service routine
-//ISR (PCINT0_vect) {
-//  int a = PINB>>EncoderA & 1;
-//  int b = PINB>>EncoderB & 1;
-//  if (a != a0) {              // A changed
-//    a0 = a;
-//    if (b != c0) {
-//      c0 = b;
-//      ChangeValue(a == b);
-//    }
-//  }
-//}
+ISR (PCINT0_vect) {
+  int a = PINB >> EncoderA & 1;
+  int b = PINB >> EncoderB & 1;
+  if (a != a0) {              // A changed
+    a0 = a;
+    if (b != c0) {
+      c0 = b;
+      ChangeValue(a == b);
+    }
+  }
+}
 
 // Setup **********************************************
 
@@ -318,12 +306,11 @@ void setup() {
   Wavefun = Waves[Wave];
   MCUSR = 0;
   SetupDDS();
-  //  SetupRotaryEncoder();
-  // Setup potentiometer pins instead
-  pinMode(potInput, INPUT);
+  SetupRotaryEncoder();
   Jump = Freq * 4;
   PlotFreq(Freq, 1, 7);
   PlotIcon(Wave, 1, 0);
+  ADCSRA &= ~(1 << ADEN); // disable ADC
 }
 
 // Everything done by interrupts
