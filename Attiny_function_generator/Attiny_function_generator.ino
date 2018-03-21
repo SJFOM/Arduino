@@ -1,6 +1,6 @@
-/* Tiny Function Generator
+/* Tiny Function Generator with Sine Wave
 
-   David Johnson-Davies - www.technoblogy.com - 18th February 2018
+   David Johnson-Davies - www.technoblogy.com - 7th March 2018
    ATtiny85 @ 8 MHz (internal PLL; BOD disabled)
 
    CC BY 4.0
@@ -9,31 +9,49 @@
 */
 
 #include <Wire.h>
+#define NOINIT __attribute__ ((section (".noinit")))
 
 // Don't initialise these on reset
-int Wave __attribute__ ((section (".noinit")));
-unsigned int Freq __attribute__ ((section (".noinit")));
+int Wave NOINIT;
+unsigned int Freq NOINIT;
+int8_t Sinewave[256] NOINIT;
 
 typedef void (*wavefun_t)();
 
 // Direct Digital Synthesis **********************************************
 
 volatile unsigned int Acc, Jump;
+volatile signed int X, Y;
 
 void SetupDDS () {
   // Enable 64 MHz PLL and use as source for Timer1
   PLLCSR = 1 << PCKE | 1 << PLLE;
 
   // Set up Timer/Counter1 for PWM output
-  TIMSK = 0;                                    // Timer interrupts OFF
+  TIMSK = 0;                               // Timer interrupts OFF
   TCCR1 = 1 << PWM1A | 2 << COM1A0 | 1 << CS10; // PWM A, clear on match, 1:1 prescale
-  pinMode(1, OUTPUT);                           // Enable PWM output pin
+  pinMode(1, OUTPUT);                      // Enable PWM output pin
 
   // Set up Timer/Counter0 for 20kHz interrupt to output samples.
   TCCR0A = 3 << WGM00;                     // Fast PWM
   TCCR0B = 1 << WGM02 | 2 << CS00;         // 1/8 prescale
   TIMSK = 1 << OCIE0A;                     // Enable compare match, disable overflow
   OCR0A = 60;                              // Divide by 61
+}
+
+// Calculate sine wave
+void CalculateSine () {
+  int X = 0, Y = 8180;
+  for (int i = 0; i < 256; i++) {
+    X = X + (Y * 4) / 163;
+    Y = Y - (X * 4) / 163;
+    Sinewave[i] = X >> 6;
+  }
+}
+
+void Sine () {
+  Acc = Acc + Jump;
+  OCR1A = Sinewave[Acc >> 8] + 128;
 }
 
 void Sawtooth () {
@@ -87,8 +105,8 @@ void Noise () {
   OCR1A = Acc;
 }
 
-const int nWaves = 7;
-wavefun_t Waves[nWaves] = {Triangle, Sawtooth, Square, Rectangle, Pulse, Chainsaw, Noise};
+const int nWaves = 8;
+wavefun_t Waves[nWaves] = {Sine, Triangle, Sawtooth, Square, Rectangle, Pulse, Chainsaw, Noise};
 wavefun_t Wavefun;
 
 ISR(TIMER0_COMPA_vect) {
@@ -143,7 +161,7 @@ void InitDisplay () {
 
 int Scale = 2; // 2 for big characters
 const int Space = 10;
-const int Hz = 11;
+const int Hz    = 11;
 const int Icons = 13;
 
 // Character set for digits, "Hz", and waveform icons - stored in program memory
@@ -161,6 +179,8 @@ const uint8_t CharMap[][6] PROGMEM = {
   { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // Space
   { 0x7F, 0x08, 0x08, 0x08, 0x7F, 0x00 }, // H
   { 0x44, 0x64, 0x54, 0x4C, 0x44, 0x00 }, // z
+  { 0x0C, 0x02, 0x01, 0x01, 0x02, 0x3C }, // Sine
+  { 0x40, 0x80, 0x80, 0x40, 0x30, 0x00 },
   { 0x08, 0x04, 0x02, 0x01, 0x02, 0x04 }, // Triangle
   { 0x08, 0x10, 0x20, 0x40, 0x20, 0x10 },
   { 0x40, 0x20, 0x10, 0x08, 0x04, 0x7E }, // Sawtooth
@@ -298,7 +318,8 @@ void setup() {
   Wire.begin();
   // Is it a power-on reset?
   if (MCUSR & 1) {
-    Wave = 0; Freq = 100;     // Start with 100Hz Triangle
+    Wave = 0; Freq = 100;     // Start with 100Hz Sine
+    CalculateSine();
     InitDisplay();
     ClearDisplay();
   }
@@ -310,7 +331,6 @@ void setup() {
   Jump = Freq * 4;
   PlotFreq(Freq, 1, 7);
   PlotIcon(Wave, 1, 0);
-  ADCSRA &= ~(1 << ADEN); // disable ADC - uses ~320uA
 }
 
 // Everything done by interrupts
