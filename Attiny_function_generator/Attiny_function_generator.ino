@@ -29,10 +29,112 @@ void SetupDDS () {
 
   // Set up Timer/Counter1 for PWM output
   TIMSK = 0;                               // Timer interrupts OFF
-  TCCR1 = 1 << PWM1A | 2 << COM1A0 | 1 << CS10; // PWM A, clear on match, 1:1 prescale
+
+  /*
+  	=============================================
+	*  TCCR1 - Timer/Counter1 Control Register  *
+	=============================================
+	The PWM duty cycle is controlled by the OCR1A register with the 
+	period of a PWM waveform being controlled by the OCR1C register.
+	Upon counting up to the value of OCR1C (default 255), the Timer1 counter
+	value is reset to zero.
+
+	Here, since Timer1 is (over)clocked to 64MHz, the OCRC1 register gives a PWM
+	waveform period of: 8MHz/(255+1) = 250kHz
+
+	=======================
+	*  TIMER1 PWM SIGNAL  *
+	=======================
+
+    Timer1 counter = 0	  
+              |              Timer1 counter = OCR1C -> 0
+              |                         |
+      				|						              |
+      				|						              v
+      				|   OCR1A			          OCR1C
+      				|	    |					          |
+      			 	v_____v  				          v____v
+      				|	    |					          |	   |
+      				|	    |					          |	   |
+      				|	    |					          |	   |
+	. . . ------|	    |-------------------|	   |------ . . . . 
+				      |<-----	   250kHz   ----->|
+
+  */
+
+  TCCR1 = 1 << PWM1A	// PWM A - Pulse Width Modulator A Enable
+  		| 2 << COM1A0 	// Clear the OC1A output line on match
+  		| 1 << CS10;	// 1:1 prescaler for 64MHz clock
+
   pinMode(1, OUTPUT);                      // Enable PWM output pin
 
-  // Set up Timer/Counter0 for 20kHz interrupt to output samples.
+
+  /*
+  	=============================================
+	*  TCCR0 - Timer/Counter0 Control Register  *
+	=============================================
+	Timer/Counter0 is operates off the default 8MHz system clock.
+	Unlike the single register used for Timer/Counter1 (TCCR1), Timer/Counter0
+	uses two registers (TCCR0A and TCCR0B) to control Timer/Counter0.
+
+	So, Timer/Counter0 is actually one timer output with the sole function of
+	scheduling when to output the generated PWM samples.
+
+	
+	=========================================
+	*  WGM - Waveform Generation Mode bits  *
+	=========================================
+	3 << WGM00: sets bits WGM00 and WGM01, which (when combined with WGM02 from TCCR0B below) enables Fast PWM mode.
+	This sets the WGM into Mode 7 which is: Fast PWM - count up to OCR0A before reset
+
+	NOTE: Clear Timer on Compare Match (CTC) Mode could also have been used here but "Fast PWM" 
+	offers a very fast timer control compare operation which is "probably" better suited to this application.
+
+
+	=======================
+	*  TIMER0 PWM SIGNAL  *
+	=======================
+
+      	Timer0 counter = 0
+      				|
+      				|	    Timer0 counter = 0CR0A-> 0
+      				|			      |
+      				|			      |		    Timer0 counter = 0CR0A-> 0
+      				|		 	      v			      |
+      				|			    OCR0A			    v	      Timer0 counter = 0CR0A-> 0 ...			
+      				| 			    |			    OCR0A		      |
+      				|			      |			      |			    OCR0A ...
+      				|		 	      |			      |			      |
+      			 	v___________v  			    v___________v
+      				|		 	      |			      |			      |
+      				|		 	      |			      |			      |
+      				|		 	      |      			|			      |
+	. . . ------|		 	      |-----------|           |---- . . . . 
+				      |<-16.4kHz->|<-16.4kHz->|<-16.4kHz->|
+
+	NOTE: 8MHz / 8 / 61 ~= 16,393Hz -> 16.4kHz - the counter frequency and resulting interrupt "rate"
+	NOTE: Each 'v' here represents an interrupt flag.
+
+
+	=====================
+	*  Output accuracy  *
+	=====================
+	By setting our output compare register OCR0A to 60 (60+1), we can get a very reasonable frequency output 
+	resolution for our needs - "within 0.1%"
+
+	Description:
+	To achieve an output frequency of 1Hz, we set a "Jump" value to 4 where:
+		16 bit max/4 = 65,536/4 = 16,384 counts.
+
+	Since our sampling clock just exceeds this, we are able to output our samples to within a very close tolerance:
+		16,384 Hz / 16,393 Hz ~= 0.99945 -> (1 - 0.99945)*100% = 0.05% ~= 0.1%
+
+	Hence, as long as we set a "Jump" value to be a multiple of 4, we will be able to maintain this resolution 
+	throughout the available frequency range.
+
+  */
+
+  // Set up Timer/Counter0 for 16.4kHz interrupt to output samples.
   TCCR0A = 3 << WGM00;                     // Fast PWM
   TCCR0B = 1 << WGM02 | 2 << CS00;         // 1/8 prescale
   TIMSK = 1 << OCIE0A;                     // Enable compare match, disable overflow
