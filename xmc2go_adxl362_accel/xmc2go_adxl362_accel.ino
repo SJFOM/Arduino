@@ -3,11 +3,12 @@
 #include "xl362.h"
 #include "xl362_io.h"
 
-#define FIFO_MODE
+//#define FIFO_MODE
 
 // pins used for the connection with the sensor
 // the other you need are controlled by the SPI library):
-int const chipSelectPin = 3;
+int const lis2DchipSelectPin  = 5;
+int const adxlChipSelectPin   = 3;
 
 uint8_t device_id = 0;
 int16_t x = 0;
@@ -28,12 +29,18 @@ uint8_t volatile fifoBuffer[fifoNumBytesToRead];
 char charBuf[30];
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   // start the SPI library:
   SPI.begin();
 
-  pinMode(chipSelectPin, OUTPUT);
+  // Ensure pin state defaults to high
+  pinMode(adxlChipSelectPin, OUTPUT);
+  digitalWrite(adxlChipSelectPin, HIGH);
+
+  // configure lis2d to be out of use here
+  pinMode(lis2DchipSelectPin, OUTPUT);
+  digitalWrite(lis2DchipSelectPin, HIGH);
 
   // delay to see the device ID output on the Serial monitor
   delay(500);
@@ -102,7 +109,7 @@ void ISR_fifoReady(void) {
 //Read from the ADXL362' FIFO:
 void xl362FifoRead(void) {
   // take the chip select low to select the device:
-  digitalWrite(chipSelectPin, LOW);
+  digitalWrite(adxlChipSelectPin, LOW);
 
   // send the read register command
   SPI.transfer(XL362_FIFO_READ);
@@ -112,7 +119,7 @@ void xl362FifoRead(void) {
     fifoBuffer[i] = (uint8_t) SPI.transfer(0x00);
   }
   // take the chip select high to de-select:
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(adxlChipSelectPin, HIGH);
 }
 
 #endif
@@ -123,7 +130,7 @@ unsigned int xl362Read(byte regToRead, int bytesToRead ) {
   unsigned int result = 0;   // result to return
 
   // take the chip select low to select the device:
-  digitalWrite(chipSelectPin, LOW);
+  digitalWrite(adxlChipSelectPin, LOW);
 
   // send the read register command
   SPI.transfer(XL362_REG_READ);
@@ -146,7 +153,7 @@ unsigned int xl362Read(byte regToRead, int bytesToRead ) {
   }
 
   // take the chip select high to de-select:
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(adxlChipSelectPin, HIGH);
   // return the result:
   return (result);
 }
@@ -155,13 +162,13 @@ unsigned int xl362Read(byte regToRead, int bytesToRead ) {
 //Sends a write command to ADXL362
 void xl362Write(byte regToWrite, byte thisValue) {
   // take the chip select low to select the device:
-  digitalWrite(chipSelectPin, LOW);
+  digitalWrite(adxlChipSelectPin, LOW);
 
   SPI.transfer(XL362_REG_WRITE);  //Send register write command
   SPI.transfer(regToWrite);       //Send register location
   SPI.transfer(thisValue);        //Send value to record into register
 
   // take the chip select high to de-select:
-  digitalWrite(chipSelectPin, HIGH);
+  digitalWrite(adxlChipSelectPin, HIGH);
 }
 
