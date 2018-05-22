@@ -16,9 +16,9 @@
 #define FIFO_MODE
 
 // pins used for the connection with the sensor
-// the other you need are controlled by the SPI library):
-int const lis2DchipSelectPin  = 5;
-int const adxlChipSelectPin   = 3;
+// the other you need are controlled by the SPI library:
+int const lis2DchipSelectPin  = 5U;
+int const adxlChipSelectPin   = 3U;
 
 uint8_t device_id = 0;
 int16_t x = 0;
@@ -27,20 +27,22 @@ int16_t z = 0;
 
 // Config bytes for accelerometer
 const uint8_t bduByte         = PROPERTY_ENABLE;
-const uint8_t rangeByte       = LIS2DW12_2g;
+const uint8_t rangeByte       = LIS2DW12_8g;
 const uint8_t filterByte      = LIS2DW12_LPF_ON_OUT;
 const uint8_t filterBW        = LIS2DW12_ODR_DIV_2;
-const uint8_t powerConfigByte = LIS2DW12_CONT_LOW_PWR_12bit;
+const uint8_t powerConfigByte = LIS2DW12_CONT_LOW_PWR_LOW_NOISE_2;
 const uint8_t csPullupByte    = LIS2DW12_PULL_UP_CONNECT;
 const uint8_t pinModeByte     = LIS2DW12_PUSH_PULL;
 const uint8_t odrByte         = LIS2DW12_XL_ODR_25Hz;
 
+
 // create a buffer for the acceleromter data
 uint8_t volatile dataBuf[6U];
+uint8_t dataRightShift = 2U;
 
 #ifdef FIFO_MODE
 // fifo pin config byte(s)
-int const fifoReadyPin = 9;
+int const fifoReadyPin = 9U;
 
 // fifo mode config bytes
 const uint8_t fifoModeByte = LIS2DW12_STREAM_MODE;
@@ -58,7 +60,7 @@ uint8_t volatile fifoBuffer[fifoNumBytesToRead];
 char charBuf[30U];
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // start the SPI library:
   SPI.begin();
@@ -127,17 +129,22 @@ void setup() {
      Configure power mode
   */
   reg.byte = lis2dw12Read(LIS2DW12_CTRL1, 1);
-  reg.byte = lis2dw12Read(LIS2DW12_CTRL6, 1);
   reg.ctrl1.mode = ( powerConfigByte & 0x0C ) >> 2;
   reg.ctrl1.lp_mode = powerConfigByte & 0x03;
-  reg.ctrl6.low_noise = ( powerConfigByte & 0x10 ) >> 4;
   lis2dw12Write(LIS2DW12_CTRL1, (uint8_t) reg.byte);
+
+  reg.byte = lis2dw12Read(LIS2DW12_CTRL6, 1);
+  reg.ctrl6.low_noise = ( powerConfigByte & 0x10 ) >> 4;
   lis2dw12Write(LIS2DW12_CTRL6, (uint8_t) reg.byte);
+
+  if (reg.ctrl1.lp_mode == 0) {
+    // its in 12-bit resolution mode so need to adjust accordingly
+    dataRightShift = 4U;
+  }
 
   /*
      Set CS pull-up connected state
   */
-
   reg.byte = lis2dw12Read(LIS2DW12_CTRL2, 1);
   reg.ctrl2.cs_pu_disc = csPullupByte;
   lis2dw12Write(LIS2DW12_CTRL2, (uint8_t) reg.byte);
@@ -155,22 +162,29 @@ void setup() {
   reg.fifo_ctrl.fmode = fifoModeByte;
   lis2dw12Write(LIS2DW12_FIFO_CTRL, (uint8_t) reg.byte);
 
-  // Set up the FIFO sample register to wait for 510 bytes
-  //  lis2dw12Write(XL362_FIFO_SAMPLES, (fifoNumSamples & 0xff));
-
   // MAP INT1 to FIFO full recognition mode
   reg.byte = lis2dw12Read(LIS2DW12_CTRL_REG7, 1);
-  reg.ctrl4_int1_pad_ctrl.int1_diff5 = 1;
+  lis2dw12_ctrl4_int1_pad_ctrl_t int1CtrlStruct = {0};
+  int1CtrlStruct.int1_diff5 = 1;
 
-  if (reg.ctrl4_int1_pad_ctrl.int1_tap || reg.ctrl4_int1_pad_ctrl.int1_ff || reg.ctrl4_int1_pad_ctrl.int1_wu ||
-      reg.ctrl4_int1_pad_ctrl.int1_single_tap || reg.ctrl4_int1_pad_ctrl.int1_6d) {
+  if (int1CtrlStruct.int1_tap || int1CtrlStruct.int1_ff || int1CtrlStruct.int1_wu
+      || int1CtrlStruct.int1_single_tap || int1CtrlStruct.int1_6d) {
     reg.ctrl_reg7.interrupts_enable = PROPERTY_ENABLE;
   }
   else {
     reg.ctrl_reg7.interrupts_enable = PROPERTY_DISABLE;
   }
 
-  lis2dw12Write(LIS2DW12_CTRL4_INT1_PAD_CTRL, (uint8_t) reg.byte);
+  uint8_t int1CtrlByte = (uint8_t) (int1CtrlStruct.int1_6d << 7) |
+                         (int1CtrlStruct.int1_single_tap << 6) |
+                         (int1CtrlStruct.int1_wu         << 5) |
+                         (int1CtrlStruct.int1_ff         << 4) |
+                         (int1CtrlStruct.int1_tap        << 3) |
+                         (int1CtrlStruct.int1_diff5      << 2) |
+                         (int1CtrlStruct.int1_fth        << 1) |
+                         (int1CtrlStruct.int1_drdy       << 0);
+
+  lis2dw12Write(LIS2DW12_CTRL4_INT1_PAD_CTRL, (uint8_t) int1CtrlByte);
   lis2dw12Write(LIS2DW12_CTRL_REG7, (uint8_t) reg.byte);
 
   /*Reset FIFO address automatically
@@ -207,10 +221,11 @@ void loop() {
     fifoReady = false;
     (void)lis2dw12FifoRead();
     for (uint16_t i = 0U; i < fifoNumBytesToRead; i += 6U) {
-      x = ((int16_t)(((uint16_t)(fifoBuffer[i + 1U] << 8U)) + fifoBuffer[i + 0U])) >> 2U;
-      y = ((int16_t)(((uint16_t)(fifoBuffer[i + 3U] << 8U)) + fifoBuffer[i + 2U])) >> 2U;
-      z = ((int16_t)(((uint16_t)(fifoBuffer[i + 5U] << 8U)) + fifoBuffer[i + 4U])) >> 2U;
-      sprintf(charBuf, "x - %d\ty - %d\tz - %d", x, y, z);
+      x = ((int16_t)(((uint16_t)(fifoBuffer[i + 1U] << 8U)) + fifoBuffer[i + 0U])) >> dataRightShift;
+      y = ((int16_t)(((uint16_t)(fifoBuffer[i + 3U] << 8U)) + fifoBuffer[i + 2U])) >> dataRightShift;
+      z = ((int16_t)(((uint16_t)(fifoBuffer[i + 5U] << 8U)) + fifoBuffer[i + 4U])) >> dataRightShift;
+      //      sprintf(charBuf, "x - %d\ty - %d\tz - %d", x, y, z);
+      sprintf(charBuf, "%d,%d,%d", x, y, z);
       Serial.println(charBuf);
     }
   }
