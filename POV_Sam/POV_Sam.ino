@@ -1,4 +1,3 @@
-
 //RadioShack POV Wand Arduino code
 //by Amanda Ghassaei
 //instructables.com/amandaghassaei
@@ -8,15 +7,15 @@
 
 
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 */
 
 //in most of this code I have used the arduino portpin assignments to send data to pins, you can read more about how that works here: http://www.arduino.cc/en/Reference/PortManipulation
@@ -27,7 +26,7 @@
 #include <math.h>
 
 /*******************************************************************************
-THIS NEXT SECTION IS WHAT YOU'LL WANT TO EDIT TO CREATE YOUR OWN MESSAGES
+  THIS NEXT SECTION IS WHAT YOU'LL WANT TO EDIT TO CREATE YOUR OWN MESSAGES
 *******************************************************************************/
 // setup
 int sensorValue = 0;
@@ -37,11 +36,11 @@ byte refreshrate = 1;//delay time for pixels to refresh in milliseconds- experim
 
 
 
- //get length of string povtext
+//get length of string povtext
 int dimtext = povtext.length();
 
 //letterArray to make sure firmware is loaded correctly- each led should light up in order upon turning on
-const boolean load[]= {
+const boolean load[] = {
   1, 0, 0, 0, 0, 0, 0, 0,
   0, 1, 0, 0, 0, 0, 0, 0,
   0, 0, 1, 0, 0, 0, 0, 0,
@@ -354,154 +353,154 @@ const boolean letterZ[] PROGMEM = {
 //   'A','B','C','D','E','F'
 }
 
-  void sendToWand(const boolean letterArray[]){//function to get array data
+void sendToWand(const boolean letterArray[]) { //function to get array data
 
-    sensorValue = analogRead(A1);
-    if(sensorValue > 100){
-      delayScalar = round(sensorValue/10.0);
-    } else{
-      delayScalar = 5;
-    }
-    
-  for (t=0; t<12; t++){ //for each time step
-
-  for (l=0; l<8; l++){ //for next eight rows of data
-    data = data << 1;//bitwise shift left
-    data |= pgm_read_byte_near(letterArray + (l*12+t));//add next value from dataset
+  sensorValue = analogRead(A1);
+  if (sensorValue > 100) {
+    delayScalar = round(sensorValue / 10.0);
+  } else {
+    delayScalar = 5;
   }
 
-  //SET PINS:
-  PORTD = data;
-  delay(refreshrate*delayScalar);
-  //clear data storage
-  data=0;
+  for (t = 0; t < 12; t++) { //for each time step
+
+    for (l = 0; l < 8; l++) { //for next eight rows of data
+      data = data << 1;//bitwise shift left
+      data |= pgm_read_byte_near(letterArray + (l * 12 + t)); //add next value from dataset
+    }
+
+    //SET PINS:
+    PORTD = data;
+    delay(refreshrate * delayScalar);
+    //clear data storage
+    data = 0;
+  }
 }
-}  
 
 void setup() {
 
 
 
- //port/pin assignments- set all pins to output- more info here: http://www.arduino.cc/en/Reference/PortManipulation
+  //port/pin assignments- set all pins to output- more info here: http://www.arduino.cc/en/Reference/PortManipulation
   DDRD = 0xFF;//port d- digital pins 0-7
 
-  
-  pinMode(A1, INPUT);
- //run intialization so we know device is working- leds should light up in order from top of wand to bottom
- for (byte j=0; j<20; j++){ //for each time step
 
-  for (byte i=0; i<8; i++){ //for next eight rows of data
-    data = data << 1;//bitwise shift left
-    data |= load[(i*20+j)];//add next value from dataset
+  pinMode(A1, INPUT);
+  //run intialization so we know device is working- leds should light up in order from top of wand to bottom
+  for (byte j = 0; j < 20; j++) { //for each time step
+
+    for (byte i = 0; i < 8; i++) { //for next eight rows of data
+      data = data << 1;//bitwise shift left
+      data |= load[(i * 20 + j)]; //add next value from dataset
+    }
+    PORTD = data;
+    delay(100);
   }
-  PORTD = data;
-  delay(100);
-}
 
   //clear data storage
-data = 0;
+  data = 0;
   //clear ports
-PORTD = data;
+  PORTD = data;
 
 }
 
 void loop() {
 
   //space at beginning of text
- PORTD = 0;
- delay(refreshrate*3);
+  PORTD = 0;
+  delay(refreshrate * 3);
 
-  for (n=0; n<dimtext; n++) {//go through each character of povtext and call function sendToWand to display letter
-    if (povtext.charAt(n)=='A') {
+  for (n = 0; n < dimtext; n++) { //go through each character of povtext and call function sendToWand to display letter
+    if (povtext.charAt(n) == 'A') {
       sendToWand(letterA);
     }
-    else if (povtext.charAt(n)=='B') {
+    else if (povtext.charAt(n) == 'B') {
       sendToWand(letterB);
     }
-    else if (povtext.charAt(n)=='C') {
+    else if (povtext.charAt(n) == 'C') {
       sendToWand(letterC);
     }
-    else if (povtext.charAt(n)=='D') {
+    else if (povtext.charAt(n) == 'D') {
       sendToWand(letterD);
     }
-    else if (povtext.charAt(n)=='E') {
+    else if (povtext.charAt(n) == 'E') {
       sendToWand(letterE);
     }
-    else if (povtext.charAt(n)=='F') {
+    else if (povtext.charAt(n) == 'F') {
       sendToWand(letterF);
     }
-    else if (povtext.charAt(n)=='G') {
+    else if (povtext.charAt(n) == 'G') {
       sendToWand(letterG);
     }
-    else if (povtext.charAt(n)=='H') {
+    else if (povtext.charAt(n) == 'H') {
       sendToWand(letterH);
     }
-    else if (povtext.charAt(n)=='I') {
+    else if (povtext.charAt(n) == 'I') {
       sendToWand(letterI);
     }
-    else if (povtext.charAt(n)=='J') {
+    else if (povtext.charAt(n) == 'J') {
       sendToWand(letterJ);
     }
-    else if (povtext.charAt(n)=='K') {
+    else if (povtext.charAt(n) == 'K') {
       sendToWand(letterK);
     }
-    else if (povtext.charAt(n)=='L') {
+    else if (povtext.charAt(n) == 'L') {
       sendToWand(letterL);
     }
-    else if (povtext.charAt(n)=='M') {
+    else if (povtext.charAt(n) == 'M') {
       sendToWand(letterM);
     }
-    else if (povtext.charAt(n)=='N') {
+    else if (povtext.charAt(n) == 'N') {
       sendToWand(letterN);
     }
-    else if (povtext.charAt(n)=='O') {
+    else if (povtext.charAt(n) == 'O') {
       sendToWand(letterO);
     }
-    else if (povtext.charAt(n)=='P') {
+    else if (povtext.charAt(n) == 'P') {
       sendToWand(letterP);
     }
-    else if (povtext.charAt(n)=='Q') {
+    else if (povtext.charAt(n) == 'Q') {
       sendToWand(letterQ);
     }
-    else if (povtext.charAt(n)=='R') {
+    else if (povtext.charAt(n) == 'R') {
       sendToWand(letterR);
     }
-    else if (povtext.charAt(n)=='S') {
+    else if (povtext.charAt(n) == 'S') {
       sendToWand(letterS);
     }
-    else if (povtext.charAt(n)=='T') {
+    else if (povtext.charAt(n) == 'T') {
       sendToWand(letterT);
     }
-    else if (povtext.charAt(n)=='U') {
+    else if (povtext.charAt(n) == 'U') {
       sendToWand(letterU);
     }
-    else if (povtext.charAt(n)=='V') {
+    else if (povtext.charAt(n) == 'V') {
       sendToWand(letterV);
     }
-    else if (povtext.charAt(n)=='W') {
+    else if (povtext.charAt(n) == 'W') {
       sendToWand(letterW);
     }
-    else if (povtext.charAt(n)=='X') {
+    else if (povtext.charAt(n) == 'X') {
       sendToWand(letterX);
     }
-    else if (povtext.charAt(n)=='Y') {
+    else if (povtext.charAt(n) == 'Y') {
       sendToWand(letterY);
     }
-    else if (povtext.charAt(n)=='Z') {
+    else if (povtext.charAt(n) == 'Z') {
       sendToWand(letterZ);
     }
-    else if (povtext.charAt(n)==' ') {
+    else if (povtext.charAt(n) == ' ') {
       PORTD = 0;
-   delay(refreshrate*3);//off for 3 pixels
- }
+      delay(refreshrate * 3); //off for 3 pixels
+    }
     //space between each character
- PORTD = 0;
- delay(refreshrate);
-}
+    PORTD = 0;
+    delay(refreshrate);
+  }
 
   //space at end of text
-PORTD = 0;
-delay(refreshrate*3);
+  PORTD = 0;
+  delay(refreshrate * 3);
 
 }
 

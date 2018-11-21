@@ -9,12 +9,13 @@
 
  *************************************************************/
 
+//#define USE_WROVER_BOARD
 #define USE_CUSTOM_BOARD          // See "Custom board configuration" in Settings.h
 
 #define APP_DEBUG        // Comment this out to disable debug prints
 
 #define BLYNK_PRINT Serial
-#include <BlynkSimpleEsp32.h>
+
 #include "BlynkProvisioning.h"
 
 void setup() {

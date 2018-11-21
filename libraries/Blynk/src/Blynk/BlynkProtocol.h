@@ -75,6 +75,20 @@ public:
 
     void sendCmd(uint8_t cmd, uint16_t id = 0, const void* data = NULL, size_t length = 0, const void* data2 = NULL, size_t length2 = 0);
 
+    void printBanner() {
+#if defined(BLYNK_NO_FANCY_LOGO)
+        BLYNK_LOG1(BLYNK_F("Blynk v" BLYNK_VERSION " on " BLYNK_INFO_DEVICE));
+#else
+        BLYNK_LOG1(BLYNK_F(BLYNK_NEWLINE
+            "    ___  __          __" BLYNK_NEWLINE
+            "   / _ )/ /_ _____  / /__" BLYNK_NEWLINE
+            "  / _  / / // / _ \\/  '_/" BLYNK_NEWLINE
+            " /____/_/\\_, /_//_/_/\\_\\" BLYNK_NEWLINE
+            "        /___/ v" BLYNK_VERSION " on " BLYNK_INFO_DEVICE BLYNK_NEWLINE
+        ));
+#endif
+    }
+
 private:
 
     void internalReconnect() {
@@ -90,31 +104,9 @@ protected:
     void begin(const char* auth) {
         this->authkey = auth;
         lastHeartbeat = lastActivityIn = lastActivityOut = (BlynkMillis() - 5000UL);
-
-#if defined(BLYNK_NO_FANCY_LOGO)
-        BLYNK_LOG1(BLYNK_F("Blynk v" BLYNK_VERSION " on " BLYNK_INFO_DEVICE));
-#elif defined(BLYNK_FANCY_LOGO_3D)
-        BLYNK_LOG1(BLYNK_F("\n"
-            "   ____     ___                      __\n"
-            "  /\\  _`\\  /\\_ \\                    /\\ \\  _\n"
-            "  \\ \\ \\_\\ \\\\//\\ \\    __  __     ___ \\ \\ \\/ \\\n"
-            "   \\ \\  _ <  \\ \\ \\  /\\ \\/\\ \\  /' _ `\\\\ \\ , <\n"
-            "    \\ \\ \\_\\ \\ \\_\\ \\_\\ \\ \\_\\ \\ /\\ \\/\\ \\\\ \\ \\\\`\\\n"
-            "     \\ \\____/ /\\____\\\\/`____ \\\\ \\_\\ \\_\\\\ \\_\\\\_\\\n"
-            "      \\/___/  \\/____/ `/___/\\ \\\\/_/\\/_/ \\/_//_/\n"
-            "                         /\\___/\n"
-            "                         \\/__/   " BLYNK_VERSION " on " BLYNK_INFO_DEVICE "\n"
-        ));
-#else
-        BLYNK_LOG1(BLYNK_F("\n"
-            "    ___  __          __\n"
-            "   / _ )/ /_ _____  / /__\n"
-            "  / _  / / // / _ \\/  '_/\n"
-            " /____/_/\\_, /_//_/_/\\_\\\n"
-            "        /___/ v" BLYNK_VERSION " on " BLYNK_INFO_DEVICE "\n"
-        ));
-#endif
+		printBanner();
     }
+
     bool processInput(void);
 
     Transp& conn;
