@@ -24,7 +24,7 @@ void indicator_run();
 #define BOARD_LED_IS_RGB
 #endif
 
-#define DIMM(x)    (((x)*(BOARD_LED_BRIGHTNESS))/255)
+#define DIMM(x)    ((x)*(BOARD_LED_BRIGHTNESS)/255)
 #define RGB(r,g,b) (DIMM(r) << 16 | DIMM(g) << 8 | DIMM(b) << 0)
 
 class Indicator {
@@ -90,13 +90,9 @@ protected:
 #elif defined(BOARD_LED_PIN_R)     // Normal RGB LED (common anode or common cathode)
 
   void initLED() {
-    ledcAttachPin(BOARD_LED_PIN_R, LEDC_CHANNEL_1);
-    ledcAttachPin(BOARD_LED_PIN_G, LEDC_CHANNEL_2);
-    ledcAttachPin(BOARD_LED_PIN_B, LEDC_CHANNEL_3);
-
-    ledcSetup(LEDC_CHANNEL_1, LEDC_BASE_FREQ, LEDC_TIMER_BITS);
-    ledcSetup(LEDC_CHANNEL_2, LEDC_BASE_FREQ, LEDC_TIMER_BITS);
-    ledcSetup(LEDC_CHANNEL_3, LEDC_BASE_FREQ, LEDC_TIMER_BITS);
+    pinMode(BOARD_LED_PIN_R, OUTPUT);
+    pinMode(BOARD_LED_PIN_G, OUTPUT);
+    pinMode(BOARD_LED_PIN_B, OUTPUT);
   }
 
   void setRGB(uint32_t color) {
@@ -104,28 +100,27 @@ protected:
     uint8_t g = (color & 0x00FF00) >> 8;
     uint8_t b = (color & 0x0000FF);
     #if BOARD_LED_INVERSE
-    ledcWrite(LEDC_CHANNEL_1, BOARD_PWM_MAX - r);
-    ledcWrite(LEDC_CHANNEL_2, BOARD_PWM_MAX - g);
-    ledcWrite(LEDC_CHANNEL_3, BOARD_PWM_MAX - b);
+    analogWrite(BOARD_LED_PIN_R, BOARD_PWM_MAX - r);
+    analogWrite(BOARD_LED_PIN_G, BOARD_PWM_MAX - g);
+    analogWrite(BOARD_LED_PIN_B, BOARD_PWM_MAX - b);
     #else
-    ledcWrite(LEDC_CHANNEL_1, r);
-    ledcWrite(LEDC_CHANNEL_2, g);
-    ledcWrite(LEDC_CHANNEL_3, b);
+    analogWrite(BOARD_LED_PIN_R, r);
+    analogWrite(BOARD_LED_PIN_G, g);
+    analogWrite(BOARD_LED_PIN_B, b);
     #endif
   }
 
 #elif defined(BOARD_LED_PIN)       // Single color LED
 
   void initLED() {
-    ledcSetup(LEDC_CHANNEL_1, LEDC_BASE_FREQ, LEDC_TIMER_BITS);
-    ledcAttachPin(BOARD_LED_PIN, LEDC_CHANNEL_1);
+    pinMode(BOARD_LED_PIN, OUTPUT);
   }
 
   void setLED(uint32_t color) {
     #if BOARD_LED_INVERSE
-    ledcWrite(LEDC_CHANNEL_1, BOARD_PWM_MAX - color);
+    analogWrite(BOARD_LED_PIN, BOARD_PWM_MAX - color);
     #else
-    ledcWrite(LEDC_CHANNEL_1, color);
+    analogWrite(BOARD_LED_PIN, color);
     #endif
   }
 
@@ -255,6 +250,24 @@ Indicator indicator;
   void indicator_init() {
     Timer3.initialize(100*1000);
     Timer3.attachInterrupt(indicator_run);
+  }
+
+#elif defined(USE_TIMER_FIVE)
+
+  #include <Timer5.h>    // Library: https://github.com/michael71/Timer5
+
+  int indicator_counter = -1;
+  void indicator_run() {
+    indicator_counter -= 10;
+    if (indicator_counter < 0) {
+      indicator_counter = indicator.run();
+    }
+  }
+
+  void indicator_init() {
+    MyTimer5.begin(1000/10);
+    MyTimer5.attachInterrupt(indicator_run);
+    MyTimer5.start();
   }
 
 #else

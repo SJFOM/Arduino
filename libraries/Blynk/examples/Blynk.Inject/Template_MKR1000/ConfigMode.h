@@ -9,10 +9,10 @@
  **************************************************************/
 
 #include <WiFiClient.h>
-#include <WiFiServer.h>
+#include <WiFiMDNSResponder.h>
 
 WiFiServer server(WIFI_AP_CONFIG_PORT);
-
+WiFiMDNSResponder mdnsResponder;
 
 String urlDecode(const String& text);
 String urlFindArg(const String& url, const String& arg);
@@ -26,37 +26,83 @@ enum Request {
 };
 
 const char* config_form = R"html(
-<!DOCTYPE HTML><html>
-<form method='get' action='config'>
-  <label>WiFi SSID: </label><input type="text" name="ssid" length=32 required="required"><br/>
-  <label>Password:  </label><input type="text" name="pass" length=32><br/>
-  <label>Auth token:</label><input type="text" name="blynk" placeholder="a0b1c2d..." pattern="[a-zA-Z0-9]{32}" maxlength="32" required="required"><br/>
-  <label>Host: </label><input type="text" name="host" length=32><br/>
-  <label>Port: </label><input type="number" name="port" value="80" min="1" max="65535"><br/>
-  <input type='submit' value="Apply">
-</form>
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>WiFi setup</title>
+  <style>
+  body {
+    background-color: #fcfcfc;
+    box-sizing: border-box;
+  }
+  body, input {
+    font-family: Roboto, sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+  }
+  .centered {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    padding: 20px;
+    background-color: #ccc;
+    border-radius: 4px;
+  }
+  td { padding:0 0 0 5px; }
+  label { white-space:nowrap; }
+  input { width: 20em; }
+  input[name="port"] { width: 5em; }
+  input[type="submit"], img { margin: auto; display: block; width: 30%; }
+  </style>
+</head> 
+<body>
+<div class="centered">
+  <form method="get" action="config">
+    <table>
+    <tr><td><label for="ssid">WiFi SSID:</label></td>  <td><input type="text" name="ssid" length=64 required="required"></td></tr>
+    <tr><td><label for="pass">Password:</label></td>   <td><input type="text" name="pass" length=64></td></tr>
+    <tr><td><label for="blynk">Auth token:</label></td><td><input type="text" name="blynk" placeholder="a0b1c2d..." pattern="[a-zA-Z0-9]{32}" maxlength="32" required="required"></td></tr>
+    <tr><td><label for="host">Host:</label></td>       <td><input type="text" name="host" length=64></td></tr>
+    <tr><td><label for="port">Port:</label></td>       <td><input type="number" name="port" value="80" min="1" max="65535"></td></tr>
+    </table><br/>
+    <input type="submit" value="Apply">
+  </form>
+</div>
+</body>
 </html>
 )html";
 
 void restartMCU() {
-  ESP.restart();
+  NVIC_SystemReset();
 }
 
 void enterConfigMode()
 {
-  WiFi.mode(WIFI_OFF);
-  delay(100);
-  WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(WIFI_AP_IP, WIFI_AP_IP, WIFI_AP_Subnet);
-  WiFi.softAP(PRODUCT_WIFI_SSID);
+  byte mac[6];
+  memset(mac, 0, sizeof(mac));
+  WiFi.macAddress(mac);
+  uint32_t chipId = *(uint32_t*)(mac+2) & 0xFFFFFF;
+
+  randomSeed(chipId);
+  const uint32_t unique = random(0xFFFFF);
+  char ssidBuff[64];
+  snprintf(ssidBuff, sizeof(ssidBuff), "%s-%05X", PRODUCT_WIFI_SSID, unique);
+
+  WiFi.beginAP(ssidBuff);
+  mdnsResponder.begin(BOARD_CONFIG_AP_URL);
+
   delay(500);
-  IPAddress myIP = WiFi.softAPIP();
-  DEBUG_PRINT(String("AP SSID: ") + PRODUCT_WIFI_SSID);
+  IPAddress myIP = WiFi.localIP();
+  DEBUG_PRINT(String("AP SSID: ") + ssidBuff);
   DEBUG_PRINT(String("AP IP:   ") + myIP[0] + "." + myIP[1] + "." + myIP[2] + "." + myIP[3]);
+  DEBUG_PRINT(String("AP URL:  ") + BOARD_CONFIG_AP_URL + ".local");
 
   server.begin();
 
   while(BlynkState::is(MODE_WAIT_CONFIG)) {
+    mdnsResponder.poll();
     WiFiClient client = server.available();   // listen for incoming clients
 
     if (client) {                             // if you get a client,
@@ -156,7 +202,7 @@ void enterConfigMode()
           } else if (currentLine.indexOf(" /config") >= 0) {
             req = REQ_CONFIG;
             int idx = currentLine.indexOf("?");
-            config_line = '&' + currentLine.substring(idx+1, currentLine.lastIndexOf(' ')) + '&';
+            config_line = "&" + currentLine.substring(idx+1, currentLine.lastIndexOf(' ')) + "&";
           } else if (currentLine.indexOf(" /reset") >= 0) {
             req = REQ_RESET;
           } else if (currentLine.indexOf(" /reboot") >= 0) {
@@ -197,7 +243,7 @@ String urlDecode(const String& text)
 
 String urlFindArg(const String& url, const String& arg)
 {
-  int s = url.indexOf('&' + arg + '=');
+  int s = url.indexOf("&" + arg + "=");
   if (s < 0)
     return "";
   int s_len = arg.length() + 2;
@@ -209,11 +255,12 @@ void enterConnectNet() {
   BlynkState::set(MODE_CONNECTING_NET);
   DEBUG_PRINT(String("Connecting to WiFi: ") + configStore.wifiSSID);
 
-  WiFi.begin(configStore.wifiSSID, configStore.wifiPass);
+  WiFi.end();
 
   unsigned long timeoutMs = millis() + WIFI_NET_CONNECT_TIMEOUT;
   while ((timeoutMs > millis()) && (WiFi.status() != WL_CONNECTED))
   {
+    WiFi.begin(configStore.wifiSSID, configStore.wifiPass);
     delay(100);
     if (!BlynkState::is(MODE_CONNECTING_NET)) {
       WiFi.disconnect();
@@ -264,9 +311,8 @@ void enterSwitchToSTA() {
 
   DEBUG_PRINT("Switching to STA...");
 
-  WiFi.mode(WIFI_OFF);
+  WiFi.end();
   delay(1000);
-  WiFi.mode(WIFI_STA);
 
   BlynkState::set(MODE_CONNECTING_NET);
 }

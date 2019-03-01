@@ -18,9 +18,7 @@
 
  *************************************************************
   Attention! Please check out TinyGSM guide:
-    http://tiny.cc/tiny-gsm-readme
-
-  WARNING: GSM modem support is for BETA testing.
+    https://tiny.cc/tinygsm-readme
 
   Change GPRS apm, user, pass, and Blynk auth token to run :)
   Feel free to apply it to any other example. It's simple!
@@ -30,18 +28,15 @@
 /* Comment this out to disable prints and save space */
 #define BLYNK_PRINT Serial
 
-// Select your modem:
-#define TINY_GSM_MODEM_SIM800
-//#define TINY_GSM_MODEM_SIM900
-//#define TINY_GSM_MODEM_M590
-//#define TINY_GSM_MODEM_A6
+// Arduino MKR GSM 1400 uses U-blox modem
+#define TINY_GSM_MODEM_UBLOX
 
 // Default heartbeat interval for GSM is 60
 // If you want override this value, uncomment and set this option:
 //#define BLYNK_HEARTBEAT 30
 
 #include <TinyGsmClient.h>
-#include <BlynkSimpleSIM800.h>
+#include <BlynkSimpleTinyGSM.h>
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
@@ -53,14 +48,7 @@ char apn[]  = "YourAPN";
 char user[] = "";
 char pass[] = "";
 
-// Hardware Serial on Mega, Leonardo, Micro
-#define SerialAT Serial1
-
-// or Software Serial on Uno, Nano
-//#include <SoftwareSerial.h>
-//SoftwareSerial SerialAT(2, 3); // RX, TX
-
-TinyGsm modem(SerialAT);
+TinyGsm modem(SerialGSM);
 
 void setup()
 {
@@ -70,8 +58,19 @@ void setup()
   delay(10);
 
   // Set GSM module baud rate
-  SerialAT.begin(115200);
-  delay(3000);
+  SerialGSM.begin(115200);
+
+  pinMode(GSM_DTR, OUTPUT);
+  digitalWrite(GSM_DTR, LOW);
+  delay(5);
+
+  // Turn on the GSM module by triggering GSM_RESETN pin
+  pinMode(GSM_RESETN, OUTPUT);
+  digitalWrite(GSM_RESETN, HIGH);
+  delay(100);
+  digitalWrite(GSM_RESETN, LOW);
+
+  delay(1000);
 
   // Restart takes quite some time
   // To skip it, call init() instead of restart()

@@ -8,12 +8,8 @@
  *
  **************************************************************/
 
-extern "C" {
-  #include "user_interface.h"
-}
-
 #include "Settings.h"
-#include <BlynkSimpleEsp8266.h>
+#include <BlynkSimpleEsp32.h>
 #include "BlynkState.h"
 #include "ConfigStore.h"
 #include "ResetButton.h"
@@ -37,8 +33,6 @@ public:
     DEBUG_PRINT("");
     DEBUG_PRINT("Hardware v" + String(BOARD_HARDWARE_VERSION));
     DEBUG_PRINT("Firmware v" + String(BOARD_FIRMWARE_VERSION));
-
-    randomSeed(ESP.getChipId());
 
     indicator_init();
     button_init();

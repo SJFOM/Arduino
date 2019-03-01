@@ -10,8 +10,8 @@
 
 #include "Settings.h"
 #include <SPI.h>
-#include <WiFi101.h>
-#include <BlynkSimpleMKR1000.h>
+#include <WiFiNINA.h>
+#include <BlynkSimpleWiFiNINA.h>
 #include "BlynkState.h"
 #include "ConfigStore.h"
 #include "ResetButton.h"
@@ -35,9 +35,6 @@ public:
     DEBUG_PRINT("");
     DEBUG_PRINT("Hardware v" + String(BOARD_HARDWARE_VERSION));
     DEBUG_PRINT("Firmware v" + String(BOARD_FIRMWARE_VERSION));
-
-    // TODO: randomSeed(getChipId());
-    // https://gist.github.com/mgk/c9ec87436d2d679e5d08
 
     indicator_init();
     button_init();
