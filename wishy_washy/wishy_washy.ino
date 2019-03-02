@@ -1,6 +1,6 @@
 /*
 Wishy Washy
-V: 0.1
+V: 0.2
 */
 
 /* Comment this out to disable prints and save space */
@@ -42,7 +42,7 @@ const long int timeoutValue = 1000L;
 const long int  TIME_WINDOW      = 3000L; // 3 seconds
 const long int  TIME_UNTIL_ON    = 30000L; // time until machine kicks back into life between states
 const long int  TIME_UNTIL_DONE  = 90000L;
-const float     THRESHOLD        = 0.3f; // acceleration force threshold to indicate "ON" state
+const float     THRESHOLD        = 0.5f; // acceleration force threshold to indicate "ON" state
 
 enum washState
 {
@@ -161,10 +161,10 @@ void loop()
 void myTimerEvent()
 {
   static float accForce = 0;
+  static float meanValue = 0;
+  static uint8_t meanCount = 0;
 
   long int t_now = millis();
-
-  Blynk.virtualWrite(PIN_UPTIME, t_now / 1000);
 
   // Read from mpu6050
   mpu6050_getAccel();
@@ -172,10 +172,28 @@ void myTimerEvent()
 
   accForce = fabs(accelX - accelX_init) + fabs(accelY - accelY_init) + fabs(accelZ - accelZ_init);
   accForce *= 9.81f / MPU_ACCL_2_SCALE; // scale it to a value we can understand
+
+  if(meanCount++ < 10)
+  {
+    meanValue += accForce;
+  }
+  else 
+  {
+    meanValue /= 10;
+    meanCount = 1;
+  }
+
+  if(fabs(accForce - meanValue) > threshold)
+  {
+    myWash.lastActiveTime = t_now;
+  }
+
+/* Previous code
   if (accForce > myWash.threshold)
   {
     myWash.lastActiveTime = t_now;
   }
+*/
 
   // Did we exceed our threshold at any time in the last three seconds?
   // "Recently" active means our force exceeded the threshold at least once
@@ -260,6 +278,8 @@ void myTimerEvent()
       break;
   }
 
+  // send all the goodies
+  Blynk.virtualWrite(PIN_UPTIME, t_now / 1000);
   Blynk.virtualWrite(PIN_ACCEL, accForce);
   Blynk.virtualWrite(PIN_TEMPERATURE, temperature / 340.00f + 36.53f);
 }
